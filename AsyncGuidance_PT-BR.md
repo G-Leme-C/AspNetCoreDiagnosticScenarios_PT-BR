@@ -29,9 +29,11 @@ Por causa disso, há muita incerteza com relação às melhores práticas para a
 
 ## Assincronia é viral 
 
-Once you go async, all of your callers **SHOULD** be async, since efforts to be async amount to nothing unless the entire callstack is async. In many cases, being partially async can be worse than being entirely synchronous. Therefore it is best to go all in, and make everything async at once.
+Uma vez que você utiliza chamadas assíncronas, todas as suas chamadas **DEVEM** ser assíncronas. Caso contrário, o esforço para usar async resulta em nada.
+Em muitos casos, utilizar async parcialmente pode ser pior do que realizar todas as chamadas de forma síncrona. Por isso, é melhor se comprometer com a mudança e fazer com que tudo seja assíncrono de uma vez só.
 
-❌ **BAD** This example uses the `Task.Result` and as a result blocks the current thread to wait for the result. This is an example of [sync over async](#avoid-using-taskresult-and-taskwait).
+
+❌ **NÃO FAÇA** Esse exemplo utiliza `Task.Result` e por causa disso bloqueia a thread aguardando o retorno do resultado. Esse é um exemplo de [sync over async](#avoid-using-taskresult-and-taskwait).
 
 ```C#
 public int DoSomethingAsync()
@@ -41,7 +43,7 @@ public int DoSomethingAsync()
 }
 ```
 
-:white_check_mark: **GOOD** This example uses the await keyword to get the result from `CallDependencyAsync`.
+:white_check_mark: **FAÇA** Esse exemplo utiliza a palavra chave async para obter o resultado do método `CallDependencyAsync`.
 
 ```C#
 public async Task<int> DoSomethingAsync()
