@@ -55,9 +55,12 @@ public async Task<int> DoSomethingAsync()
 
 ## Async void
 
-Use of async void in ASP.NET Core applications is **ALWAYS** bad. Avoid it, never do it. Typically, it's used when developers are trying to implement fire and forget patterns triggered by a controller action. Async void methods will crash the process if an exception is thrown. We'll look at more of the patterns that cause developers to do this in ASP.NET Core applications but here's a simple example:
+O uso de `async void` em uma aplicação ASP.NET Core é **SEMPRE** ruim. Evite ou nunca faça. Normalmente, é usada quando os desenvolvedores estão tentando implementar o padrão "fire and forget" de algo que é ativado com uma chamada em um controller.
+Métodos async void vão quebrar a aplicação caso uma exceção seja lançada.
 
-❌ **BAD** Async void methods can't be tracked and therefore unhandled exceptions can result in application crashes.
+Veremos alguns padrões que levam desenvolvedores a cometer esse erro, mas aqui vai um exemplo simples:
+
+❌ **NÃO FAÇA** Métodos async void não são rastreados e portanto, exceções não tratadas podem resultar no crash da aplicação.
 
 ```C#
 public class MyController : Controller
@@ -77,7 +80,7 @@ public class MyController : Controller
 }
 ```
 
-:white_check_mark: **GOOD** `Task`-returning methods are better since unhandled exceptions trigger the [`TaskScheduler.UnobservedTaskException`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler.unobservedtaskexception?view=netframework-4.7.2).
+:white_check_mark: **FAÇA** Métodos que retornam `Task` são melhores pois exceções não tratadas vão ativar [`TaskScheduler.UnobservedTaskException`](https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.taskscheduler.unobservedtaskexception?view=netframework-4.7.2).
 
 ```C#
 public class MyController : Controller
@@ -97,11 +100,11 @@ public class MyController : Controller
 }
 ```
 
-## Prefer `Task.FromResult` over `Task.Run` for pre-computed or trivially computed data
+## Prefira `Task.FromResult` ao invés de `Task.Run` para valores pré-calculados ou com cálculos simples
 
-For pre-computed results, there's no need to call `Task.Run`, that will end up queuing a work item to the thread pool that will immediately complete with the pre-computed value. Instead, use `Task.FromResult`, to create a task wrapping already computed data.
+Para resultados pré-computados não há necessidade de utilizar `Task.Run`. Esse método irá enfileirar um item na thread pool que irá completar imediatamente com o valor pré-computado. Ao invés disso, use `Task.FromResult` para criar uma Task em volta dos dados já computados.
 
-❌ **BAD** This example wastes a thread-pool thread to return a trivially computed value.
+❌ **NÃO FAÇA** Esse exemplo desperdiça uma thread pra retornar um dado computado trivialmente.
 
 ```C#
 public class MyLibrary
@@ -113,7 +116,7 @@ public class MyLibrary
 }
 ```
 
-:white_check_mark: **GOOD** This example uses `Task.FromResult` to return the trivially computed value. It does not use any extra threads as a result.
+:white_check_mark: **FAÇA** Esse exemplo utiliza `Task.FromResult` para retornar dados facilmente computados e não utiliza nenhuma thread extra no processo.
 
 ```C#
 public class MyLibrary
@@ -125,7 +128,7 @@ public class MyLibrary
 }
 ```
 
-:bulb:**NOTE: Using `Task.FromResult` will result in a `Task` allocation. Using `ValueTask<T>` can completely remove that allocation.**
+:bulb:**NOTA: Usar `Task.FromResult` vai resultar na alocação de uma `Task`. Para evitar isso, pode-se usar `ValueTask<T>`.**
 
 :white_check_mark: **GOOD** This example uses a `ValueTask<int>` to return the trivially computed value. It does not use any extra threads as a result. It also does not allocate an object on the managed heap.
 
