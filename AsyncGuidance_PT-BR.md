@@ -130,7 +130,7 @@ public class MyLibrary
 
 :bulb:**NOTA: Usar `Task.FromResult` vai resultar na alocação de uma `Task`. Para evitar isso, pode-se usar `ValueTask<T>`.**
 
-:white_check_mark: **GOOD** This example uses a `ValueTask<int>` to return the trivially computed value. It does not use any extra threads as a result. It also does not allocate an object on the managed heap.
+:white_check_mark: **BOM** Esse exemplo utiliza `ValueTask<int>` para retornar um valor que foi computado de forma trivial. Por causa disso, não utiliza nenhuma thread extra e também não aloca um objeto no heap gerenciado.
 
 ```C#
 public class MyLibrary
@@ -142,18 +142,19 @@ public class MyLibrary
 }
 ```
 
-## Avoid using Task.Run for long running work that blocks the thread
+## Evite usar Task.Run para tarefas que rodem por muito tempo e bloqueiem a thread
 
-Long running work in this context refers to a thread that's running for the lifetime of the application doing background work (like processing queue items, or sleeping and waking up to process some data). `Task.Run` will queue a work item to the thread pool. The assumption is that that work will finish quickly (or quickly enough to allow reusing that thread within some reasonable timeframe). Stealing a thread-pool thread for long-running work is bad since it takes that thread away from other work that could be done (timer callbacks, task continuations etc). Instead, spawn a new thread manually to do long running blocking work.
+Tarefas de longa duração, nesse contexto, se refere a tarefas que rodam em background durante o ciclo de vida da aplicação (como processar itens de filas, ou "dormir" e "acordar" para processar algum dado). `Task.Run` vai enfileirar um item na pool de threads. Aqui assumimos que um processo será finalizado rapidamente (ou rápido o suficiente para permitir a reutilização da thread em um tempo razoável).
+Utilizar uma thread da thread-pool nesse contexto de tarefas de longa duração é ruim pois vai impedir que essa thread seja usada para realizar outras tarefas (callbacks de timers, continuação de tasks etc). Ao invés disso, inicie uma nova thread manualmente para realizar essas tarefas de longa duração.
 
-:bulb: **NOTE: The thread pool grows if you block threads but it's bad practice to do so.**
+:bulb: **NOTA: A thread pool aumenta se você bloquear threads, mas isso é uma má prática.**
 
-:bulb: **NOTE:`Task.Factory.StartNew` has an option `TaskCreationOptions.LongRunning` that under the covers creates a new thread and returns a Task that represents the execution. Using this properly requires several non-obvious parameters to be passed in to get the right behavior on all platforms.**
+:bulb: **NOTA:`Task.Factory.StartNew` tem uma opção `TaskCreationOptions.LongRunning` que por baixo dos panos cria uma nova thread e retorna a Task que representa a execução. Utilizar essa feature apropriadamente requer diversos parâmetros que não são óbvios para que o comportamento seja correto em todas as plataformas.**
 
-:bulb: **NOTE: Don't use `TaskCreationOptions.LongRunning` with async code as this will create a new thread which will be destroyed after first `await`.**
+:bulb: **NOTA: Não use `TaskCreationOptions.LongRunning` com código assíncrono pois isso irá criar uma nova thread que será destruída após o primeiro `await`.**
 
 
-❌ **BAD** This example steals a thread-pool thread forever, to execute queued work on a `BlockingCollection<T>`.
+❌ **NÃO FAÇA** Esse exemplo "rouba" uma thread da thread-pool para sempre, para executar trabalho enfileirado em uma `BlockingCollection<T>`.
 
 ```C#
 public class QueueProcessor
@@ -182,7 +183,7 @@ public class QueueProcessor
 }
 ```
 
-:white_check_mark: **GOOD** This example uses a dedicated thread to process the message queue instead of a thread-pool thread.
+:white_check_mark: **FAÇA** Esse exemplo usa uma thread dedicada para processar a fila de mensagens ao invés de usar uma thread da thread-pool.
 
 ```C#
 public class QueueProcessor
@@ -193,7 +194,7 @@ public class QueueProcessor
     {
         var thread = new Thread(ProcessQueue) 
         {
-            // This is important as it allows the process to exit while this thread is running
+            // Isso é importante pois permite o processo ser finalizado enquanto essa thread ainda está rodando.
             IsBackground = true
         };
         thread.Start();
