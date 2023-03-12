@@ -217,88 +217,91 @@ public class QueueProcessor
 }
 ```
 
-## Avoid using `Task.Result` and `Task.Wait`
+## Evite usar `Task.Result` e `Task.Wait`
 
-There are very few ways to use `Task.Result` and `Task.Wait` correctly so the general advice is to completely avoid using them in your code. 
+Existem poucas maneiras de usar `Task.Result` e `Task.Wait` corretamente, então, geralmente o melhor é não usar.
 
-### :warning: Sync over `async`
+### :warning: Síncrono ao invés de `async`
 
-Using `Task.Result` or `Task.Wait` to block wait on an asynchronous operation to complete is *MUCH* worse than calling a truly synchronous API to block. This phenomenon is dubbed "Sync over async". Here is what happens at a very high level:
+Usar `Task.Result` ou `Task.Wait` pra bloquear e aguardar o retorno de uma operação assíncriona é *MUITO* pior do que chamar uma API assíncrona de verdade. Esse fenômeno é chamado de "Sync over async". Isso é o que acontece:
 
-- An asynchronous operation is kicked off.
-- The calling thread is blocked waiting for that operation to complete.
-- When the asynchronous operation completes, it unblocks the code waiting on that operation. This takes place on another thread.
+- Uma operação assíncrona é iniciada.
+- A thread que está chamado a operação é bloqueada aguardando que a operação termine.
+- Quando a operação termina, o código que estava aguardando a execução é "desbloqueado" e isso acontece em OUTRA thread.
 
-The result is that we need to use 2 threads instead of 1 to complete synchronous operations. This usually leads to [thread-pool starvation](https://blogs.msdn.microsoft.com/vancem/2018/10/16/diagnosing-net-core-threadpool-starvation-with-perfview-why-my-service-is-not-saturating-all-cores-or-seems-to-stall/) and results in service outages.
+Resultado: precisamos de 2 threads ao invés de 1 pra realizar uma operação síncrona. Isso normalmente gera um fenômeno chamado [thread-pool starvation](https://blogs.msdn.microsoft.com/vancem/2018/10/16/diagnosing-net-core-threadpool-starvation-with-perfview-why-my-service-is-not-saturating-all-cores-or-seems-to-stall/) e isso pode resultar em interrupções no serviço.
 
 ### :warning: Deadlocks
 
-The `SynchronizationContext` is an abstraction that gives application models a chance to control where asynchronous continuations run. ASP.NET (non-core), WPF and Windows Forms each have an implementation that will result in a deadlock if Task.Wait or Task.Result is used on the main thread. This behavior has led to a bunch of "clever" code snippets that show the "right" way to block waiting for a Task. The truth is, there's no good way to block waiting for a Task to complete.
+A classe `SynchronizationContext` é uma abstração que permite aos `ApplicationModels` a possibilidade de controlar onde as 
+continuações assíncronas rodam. [Leia mais sobre ApplicationModels](https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/application-model?view=aspnetcore-7.0).
+ASP.NET, WPF e Winforms tem implementações únicas que vão resultar em um deadlock se Task.Wait ou Task.Result forem utilizados na thread principal.
+Esse comportamento resultou em alguns code snippets que mostram o jeito "certo" de aguardar uma task bloqueante. Na verdade, não existe uma boa forma de aguardar uma task bloqueante.
 
-:bulb:**NOTE: ASP.NET Core does not have a `SynchronizationContext` and is not prone to the deadlock problem.**
+:bulb:**NOTA: ASP.NET Core não tem `SynchronizationContext` e não é propenso a deadlocks.**
 
-❌ **BAD** The below are all examples that are, in one way or another, trying to avoid the deadlock situation but still succumb to "sync over async" problems.
+❌ **NÃO FAÇA** Abaixo todos os exemplos estão, de uma forma ou de outra, tentando evitar o deadlock mas ainda sofrem de problemas de "sync over async".
 
 ```C#
 public string DoOperationBlocking()
 {
-    // Bad - Blocking the thread that enters.
-    // DoAsyncOperation will be scheduled on the default task scheduler, and remove the risk of deadlocking.
-    // In the case of an exception, this method will throw an AggregateException wrapping the original exception.
+    // Ruim - Bloqueando a thread.
+    // DoAsyncOperation vai ser agendado no agendador padrão de tarefa e retirar o risco de deadlock.
+    // No caso de uma exceção, o método irá lançar uma AggregateException em volta da exception original.
     return Task.Run(() => DoAsyncOperation()).Result;
 }
 
 public string DoOperationBlocking2()
 {
-    // Bad - Blocking the thread that enters.
-    // DoAsyncOperation will be scheduled on the default task scheduler, and remove the risk of deadlocking.
-    // In the case of an exception, this method will throw the exception without wrapping it in an AggregateException.
+    // Ruim - Bloqueando a thread.
+    // DoAsyncOperation vai ser agendado no agendador padrão de tarefa e retirar o risco de deadlock.
+    // No caso de uma exceção, esse método irá lançar a exceção sem envolve-la por uma AggregateException.
     return Task.Run(() => DoAsyncOperation()).GetAwaiter().GetResult();
 }
 
 public string DoOperationBlocking3()
 {
-    // Bad - Blocking the thread that enters, and blocking the threadpool thread inside.
-    // In the case of an exception, this method will throw an AggregateException containing another AggregateException, containing the original exception.
+    // Ruim - Bloqueando a thread, e bloqueando a thread do threadpool.
+    // No caso de uma exceção, o método irá lançar uma AggregateException em volta de outra AggragateException que contém a exception original.
     return Task.Run(() => DoAsyncOperation().Result).Result;
 }
 
 public string DoOperationBlocking4()
 {
-    // Bad - Blocking the thread that enters, and blocking the threadpool thread inside.
+    // Ruim - Bloqueando a thread, e bloqueando a thread do threadpool.
     return Task.Run(() => DoAsyncOperation().GetAwaiter().GetResult()).GetAwaiter().GetResult();
 }
 
 public string DoOperationBlocking5()
 {
-    // Bad - Blocking the thread that enters.
-    // Bad - No effort has been made to prevent a present SynchonizationContext from becoming deadlocked.
-    // In the case of an exception, this method will throw an AggregateException wrapping the original exception.
+    // Ruim - Bloqueando a thread.
+    // Ruim - Nesse caso, não existe nada que impeça SynchonizationContext de sofrer um deadlock.
+    // No caso de uma exceção, o método irá lançar uma AggregateException em volta da exception original.
     return DoAsyncOperation().Result;
 }
 
 public string DoOperationBlocking6()
 {
-    // Bad - Blocking the thread that enters.
-    // Bad - No effort has been made to prevent a present SynchonizationContext from becoming deadlocked.
+    // Ruim - Bloqueando a thread.
+    // Ruim - Nesse caso, não existe nada que impeça SynchonizationContext de sofrer um deadlock.
     return DoAsyncOperation().GetAwaiter().GetResult();
 }
 
 public string DoOperationBlocking7()
 {
-    // Bad - Blocking the thread that enters.
-    // Bad - No effort has been made to prevent a present SynchonizationContext from becoming deadlocked.
+    // Ruim - Bloqueando a thread.
+    // Ruim - Nesse caso, não existe nada que impeça SynchonizationContext de sofrer um deadlock.
     var task = DoAsyncOperation();
     task.Wait();
     return task.GetAwaiter().GetResult();
 }
 ```
 
-## Prefer `await` over `ContinueWith`
+## Prefira `await` ao invés de `ContinueWith`
 
-`Task` existed before the async/await keywords were introduced and as such provided ways to execute continuations without relying on the language. Although these methods are still valid to use, we generally recommend that you prefer `async`/`await` to using `ContinueWith`. `ContinueWith` also does not capture the `SynchronizationContext` and as a result is actually semantically different to `async`/`await`.
+`Task` existe antes mesmo da introdução das keywords async/await e por si só provê formas de continuar execuções sem depender da linguagem. Apesar de que esses métodos ainda são válidos, normalmente nós recomendamos que você prefira usar `async`/`await` ao invés `ContinueWith`. `ContinueWith` não captura o `SyncronizationContext` e por isso é semânticamente diferente de async/await.
 
-❌ **BAD** The example uses `ContinueWith` instead of `async`
+❌ **NÃO FAÇA** Esse exemplo usa `ContinueWith` ao invés de `async`
 
 ```C#
 public Task<int> DoSomethingAsync()
@@ -310,7 +313,7 @@ public Task<int> DoSomethingAsync()
 }
 ```
 
-:white_check_mark: **GOOD** This example uses the `await` keyword to get the result from `CallDependencyAsync`.
+:white_check_mark: **FAÇA** Esse exemplo usa `await` para obter o resultado de `CallDependencyAsync`.
 
 ```C#
 public async Task<int> DoSomethingAsync()
